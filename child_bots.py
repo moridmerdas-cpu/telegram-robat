@@ -1,31 +1,27 @@
-from telegram.ext import Updater, MessageHandler, Filters
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 from config import CHILD_BOTS
-import threading
+import asyncio
 
-def react(update, context):
+async def react(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.channel_post:
-        context.bot.send_message(
-            chat_id=update.channel_post.chat_id,
-            text="❤️",
-            reply_to_message_id=update.channel_post.message_id
-        )
+        message_id = update.channel_post.message_id
+        chat_id = update.channel_post.chat_id
+        # استفاده از قابلیت جدید setMessageReaction
+        await context.bot.send_reaction(chat_id=chat_id, message_id=message_id, emoji="❤️")
 
-def run_bot(bot):
-    updater = Updater(bot["token"])
-    dp = updater.dispatcher
-    dp.add_handler(MessageHandler(Filters.chat_type.channel, react))
-    updater.start_polling()
-    updater.idle()
+async def run_bot(bot_token):
+    app = ApplicationBuilder().token(bot_token).build()
+    app.add_handler(MessageHandler(filters.CHAT_TYPE_CHANNEL, react))
+    await app.start()
+    await app.updater.start_polling()
+    await asyncio.Event().wait()  # نگه داشتن ربات
 
-def main():
-    threads = []
+async def main():
+    tasks = []
     for bot in CHILD_BOTS:
-        t = threading.Thread(target=run_bot, args=(bot,))
-        t.start()
-        threads.append(t)
-
-    for t in threads:
-        t.join()
+        tasks.append(run_bot(bot["token"]))
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
